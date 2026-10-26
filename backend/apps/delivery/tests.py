@@ -144,6 +144,16 @@ def test_github_webhook_requires_signature_and_deduplicates_delivery(monkeypatch
                           HTTP_X_HUB_SIGNATURE_256="sha256=invalid",
                           HTTP_X_GITHUB_DELIVERY="delivery-abc-123", HTTP_X_GITHUB_EVENT="issues")
     assert invalid.status_code == 403
+    missing_installation = {**payload}
+    missing_installation.pop("installation")
+    missing_raw = json.dumps(missing_installation, separators=(",", ":")).encode()
+    missing_signature = "sha256=" + hmac.new(b"test-github-webhook-secret", missing_raw, hashlib.sha256).hexdigest()
+    missing = client.post(
+        "/api/v1/delivery/github/webhook/", data=missing_raw, content_type="application/json",
+        HTTP_X_HUB_SIGNATURE_256=missing_signature, HTTP_X_GITHUB_DELIVERY="delivery-missing-installation",
+        HTTP_X_GITHUB_EVENT="issues",
+    )
+    assert missing.status_code == 403
     first = client.post("/api/v1/delivery/github/webhook/", data=raw, content_type="application/json", **headers)
     assert first.status_code == 200
     assert first.data["duplicate"] is False
