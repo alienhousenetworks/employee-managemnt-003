@@ -37,3 +37,23 @@ class LeaveBalanceSerializer(serializers.ModelSerializer):
         read_only_fields = fields
     def get_available_days(self, obj):
         return obj.entitled_days + obj.accrued_days + obj.adjusted_days - obj.used_days
+
+from .models import AttendanceCorrectionRequest, Candidate
+
+class AttendanceCorrectionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AttendanceCorrectionRequest
+        fields = ["id", "attendance", "proposed_start", "proposed_end", "reason", "status", "reviewed_by", "review_note", "created_at", "reviewed_at"]
+        read_only_fields = ["id", "status", "reviewed_by", "review_note", "created_at", "reviewed_at"]
+    def validate(self, attrs):
+        start = attrs.get("proposed_start")
+        end = attrs.get("proposed_end")
+        if start and end and end <= start:
+            raise serializers.ValidationError({"proposed_end": "Corrected end must be after corrected start."})
+        return attrs
+
+class CandidateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Candidate
+        fields = ["id", "full_name", "email", "phone", "role_title", "source", "stage", "resume_url", "notes", "owner", "created_at", "updated_at"]
+        read_only_fields = ["id", "created_at", "updated_at"]
