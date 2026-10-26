@@ -12,7 +12,7 @@ This checklist is a hard gate, not a statement that the product has already pass
 
 ## 2. Database migration policy
 
-The current CI job generates candidate migrations in its ephemeral workspace, applies them to a clean database, runs `makemigrations --check --dry-run`, and uploads the candidate files as an artifact. Those files are not automatically committed.
+The current CI job generates candidate migrations in its ephemeral workspace, applies them to a clean database, runs `makemigrations --check --dry-run`, and uploads the candidate files as an artifact. Those files are not automatically committed. The latest successful candidate artifact is available from [CI run 40314154429](https://github.com/alienhousenetworks/employee-managemnt-003/actions/runs/40314154429/artifacts/12646650427).
 
 Before deployment:
 1. Download the CI artifact named `generated-django-migration-candidates`.
