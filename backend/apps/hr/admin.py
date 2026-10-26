@@ -10,7 +10,7 @@ class AttendanceEntryAdmin(admin.ModelAdmin):
     list_display = ("employee", "organization", "started_at", "ended_at", "status")
     list_filter = ("organization", "status", "started_at")
     search_fields = ("employee__username", "employee__email", "note")
-    readonly_fields = ("id", "created_at")
+    readonly_fields = ("id", "organization", "employee", "started_at", "ended_at", "status", "created_at")
     autocomplete_fields = ("organization", "employee")
 
 
@@ -19,7 +19,7 @@ class LeaveRequestAdmin(admin.ModelAdmin):
     list_display = ("employee", "organization", "leave_type", "start_date", "end_date", "status", "reviewer")
     list_filter = ("organization", "leave_type", "status")
     search_fields = ("employee__username", "employee__email", "reason")
-    readonly_fields = ("id", "created_at", "updated_at")
+    readonly_fields = ("id", "organization", "employee", "leave_type", "start_date", "end_date", "reason", "status", "reviewer", "review_note", "created_at", "updated_at")
     autocomplete_fields = ("organization", "employee", "reviewer")
 
 
@@ -53,7 +53,7 @@ class AttendanceCorrectionRequestAdmin(admin.ModelAdmin):
     list_display = ("employee", "organization", "attendance", "status", "created_at", "reviewed_by")
     list_filter = ("organization", "status", "created_at")
     search_fields = ("employee__username", "reason")
-    readonly_fields = ("created_at", "reviewed_at")
+    readonly_fields = ("organization", "attendance", "employee", "proposed_start", "proposed_end", "reason", "status", "reviewed_by", "review_note", "created_at", "reviewed_at")
     autocomplete_fields = ("organization", "attendance", "employee", "reviewed_by")
 
 
