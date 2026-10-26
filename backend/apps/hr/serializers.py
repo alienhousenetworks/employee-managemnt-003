@@ -12,8 +12,28 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
         fields = ["id", "leave_type", "start_date", "end_date", "reason", "status", "reviewer", "review_note", "created_at", "updated_at"]
         read_only_fields = ["id", "status", "reviewer", "review_note", "created_at", "updated_at"]
     def validate(self, attrs):
-        if attrs["end_date"] < attrs["start_date"]:
-            raise serializers.ValidationError({"end_date":"End date cannot be before start date."})
+        start_date = attrs.get("start_date", getattr(self.instance, "start_date", None))
+        end_date = attrs.get("end_date", getattr(self.instance, "end_date", None))
+        if start_date and end_date and end_date < start_date:
+            raise serializers.ValidationError({"end_date": "End date cannot be before start date."})
+        employee = self.context["request"].user
+        organization = getattr(self.context["request"], "organization", None)
+        if start_date and end_date and organization:
+            # Draft/submitted/approved leave blocks overlapping requests. Rejected
+            # and cancelled requests do not. Exclude this row for safe future edits.
+            conflicts = LeaveRequest.objects.filter(
+                organization=organization,
+                employee=employee,
+                status__in=[LeaveRequest.Status.SUBMITTED, LeaveRequest.Status.APPROVED],
+                start_date__lte=end_date,
+                end_date__gte=start_date,
+            )
+            if self.instance:
+                conflicts = conflicts.exclude(pk=self.instance.pk)
+            if conflicts.exists():
+                raise serializers.ValidationError({
+                    "start_date": "This date range overlaps an existing submitted or approved leave request."
+                })
         return attrs
 class EmployeeRequestSerializer(serializers.ModelSerializer):
     class Meta:

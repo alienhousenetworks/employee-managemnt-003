@@ -54,9 +54,20 @@ def test_outbound_requires_opt_in_and_manager_approval(monkeypatch):
     contact.consent = WhatsAppContact.Consent.OPTED_IN
     contact.consent_source = "signup form"
     contact.save(update_fields=["consent", "consent_source"])
-    queued = client.post("/api/v1/whatsapp/messages/", {"contact": str(contact.id), "body": "Hello"}, format="json", HTTP_X_ORGANIZATION_ID=str(org.id))
+    # Free-form bodies and arbitrary client-supplied template names are not sent.
+    freeform = client.post("/api/v1/whatsapp/messages/", {"contact": str(contact.id), "body": "Hello"}, format="json", HTTP_X_ORGANIZATION_ID=str(org.id))
+    assert freeform.status_code == 400
+    monkeypatch.setenv("WHATSAPP_APPROVED_TEMPLATES", "eod_summary,client_update")
+    unapproved = client.post("/api/v1/whatsapp/messages/", {"contact": str(contact.id), "template_name": "made_up_template"}, format="json", HTTP_X_ORGANIZATION_ID=str(org.id))
+    assert unapproved.status_code == 400
+    queued = client.post("/api/v1/whatsapp/messages/", {"contact": str(contact.id), "template_name": "client_update"}, format="json", HTTP_X_ORGANIZATION_ID=str(org.id))
     assert queued.status_code == 201
+    assert queued.data["status"] == "QUEUED"
     client.force_authenticate(manager)
+    monkeypatch.setenv("WHATSAPP_APPROVED_TEMPLATES", "eod_summary")
+    no_longer_allowlisted = client.post(f"/api/v1/whatsapp/messages/{queued.data['id']}/approve/", {}, format="json", HTTP_X_ORGANIZATION_ID=str(org.id))
+    assert no_longer_allowlisted.status_code == 400
+    monkeypatch.setenv("WHATSAPP_APPROVED_TEMPLATES", "eod_summary,client_update")
     approved = client.post(f"/api/v1/whatsapp/messages/{queued.data['id']}/approve/", {}, format="json", HTTP_X_ORGANIZATION_ID=str(org.id))
     assert approved.status_code == 200
     assert approved.data["status"] == "APPROVED"
