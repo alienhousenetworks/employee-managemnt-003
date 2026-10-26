@@ -138,3 +138,14 @@ class ClientRenewalListCreateView(TenantListCreate):
         if project and project.organization_id != self.request.organization.id:
             raise ValidationError({"project": "Project must belong to the active organization."})
         serializer.save(organization=self.request.organization)
+
+class GitHubRepositoryLinkListCreateView(generics.ListCreateAPIView):
+    serializer_class = GitHubRepositoryLinkSerializer
+    permission_classes = [IsAuthenticated, HasActiveOrganizationMembership]
+    def get_queryset(self):
+        return GitHubRepositoryLink.objects.filter(organization=self.request.organization).select_related("project")
+    def perform_create(self, serializer):
+        project = serializer.validated_data["project"]
+        if project.organization_id != self.request.organization.id:
+            raise ValidationError({"project": "Project must belong to the active organization."})
+        serializer.save(organization=self.request.organization)
