@@ -224,8 +224,9 @@ class GitHubWebhookView(APIView):
         )
         installation = payload.get("installation") or {}
         installation_id = str(installation.get("id", "")) if installation.get("id") is not None else ""
-        if installation_id:
-            links = links.filter(installation_id=installation_id)
+        if not installation_id:
+            return Response({"detail": "GitHub App installation identity is required."}, status=status.HTTP_403_FORBIDDEN)
+        links = links.filter(installation_id=installation_id)
         link = links.select_related("organization").first()
         if not link:
             # Unknown or disabled repositories are acknowledged but never processed.
