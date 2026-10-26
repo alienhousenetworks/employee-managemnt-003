@@ -122,7 +122,7 @@ def test_github_webhook_requires_signature_and_deduplicates_delivery(monkeypatch
         organization=org, project=project, repository_full_name="alienhousenetworks/example",
         repository_url="https://github.com/alienhousenetworks/example", installation_id="123", is_enabled=True,
     )
-    GitHubWorkItemLink.objects.create(
+    item = GitHubWorkItemLink.objects.create(
         organization=org, task=task, repository=repository, external_id="17",
         item_type="issue", title="Old title", url="https://github.com/alienhousenetworks/example/issues/17", state="open",
     )
