@@ -46,14 +46,14 @@ def create_run(
     }, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
     try:
         record = save_run({
-        "run_id": result.run_id,
-        "organization_id": request.organization_id,
-        "workflow": request.workflow,
-        "status": result.status,
-        "mode": result.mode,
-        "message": result.message,
-        "idempotency_key": key,
-        "request_hash": request_hash,
+            "run_id": result.run_id,
+            "organization_id": request.organization_id,
+            "workflow": request.workflow,
+            "status": result.status,
+            "mode": result.mode,
+            "message": result.message,
+            "idempotency_key": key,
+            "request_hash": request_hash,
         })
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
