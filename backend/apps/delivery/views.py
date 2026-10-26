@@ -149,3 +149,19 @@ class GitHubRepositoryLinkListCreateView(generics.ListCreateAPIView):
         if project.organization_id != self.request.organization.id:
             raise ValidationError({"project": "Project must belong to the active organization."})
         serializer.save(organization=self.request.organization)
+
+class GitHubWorkItemLinkListCreateView(generics.ListCreateAPIView):
+    serializer_class = GitHubWorkItemLinkSerializer
+    permission_classes = [IsAuthenticated, HasActiveOrganizationMembership]
+    def get_queryset(self):
+        return GitHubWorkItemLink.objects.filter(organization=self.request.organization)
+    def perform_create(self, serializer):
+        task = serializer.validated_data["task"]
+        repository = serializer.validated_data["repository"]
+        if task.organization_id != self.request.organization.id:
+            raise ValidationError({"task": "Task is outside the active organization."})
+        if repository.organization_id != self.request.organization.id:
+            raise ValidationError({"repository": "Repository is outside the active organization."})
+        if task.project_id != repository.project_id:
+            raise ValidationError({"task": "Task and repository must share a project."})
+        serializer.save(organization=self.request.organization)
