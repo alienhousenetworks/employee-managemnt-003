@@ -56,7 +56,8 @@ Verify tenant boundaries with at least two organizations and users who belong to
 
 - Configure Meta callback verification and signature secrets.
 - Confirm invalid signatures fail, webhook retries are idempotent, opt-in is never inferred from inbound messages, and opt-outs immediately block outbound queueing.
-- Before production sends, add provider-backed sending, approved template checks, retry/dead-letter handling, rate limits and reconciliation of sent/delivered/read/failed statuses.
+- Outbound queueing and approval now fail closed unless `WHATSAPP_APPROVED_TEMPLATES` contains the exact template name; the allowlist must mirror templates approved in Meta WhatsApp Manager. This configuration is not proof of Meta approval by itself.
+- Before production sends, add provider-backed sending, retry/dead-letter handling, rate limits and reconciliation of sent/delivered/read/failed statuses. No provider send worker is implemented yet.
 - Approval alone must never be reported as delivery.
 
 ## 7. AI service
