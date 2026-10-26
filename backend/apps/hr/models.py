@@ -138,3 +138,17 @@ class ShiftSchedule(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
         constraints = [models.UniqueConstraint(fields=["organization", "employee", "shift_date"], name="uniq_employee_shift_per_day")]
+
+class LeaveBalance(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="leave_balances")
+    employee = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="leave_balances")
+    leave_type = models.CharField(max_length=40)
+    period_start = models.DateField()
+    period_end = models.DateField()
+    entitled_days = models.DecimalField(max_digits=7, decimal_places=2, default=0)
+    accrued_days = models.DecimalField(max_digits=7, decimal_places=2, default=0)
+    used_days = models.DecimalField(max_digits=7, decimal_places=2, default=0)
+    adjusted_days = models.DecimalField(max_digits=7, decimal_places=2, default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["organization", "employee", "leave_type", "period_start", "period_end"], name="uniq_leave_balance_period")]
