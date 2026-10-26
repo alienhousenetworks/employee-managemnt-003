@@ -22,7 +22,11 @@ def readiness():
     return {"status": "ready" if configured else "not_configured", "authentication_configured": configured, "provider_mode": os.getenv("AI_PROVIDER", "disabled")}
 
 @app.post("/api/v1/runs", response_model=RunResponse, dependencies=[Depends(verify_service_key)])
-def create_run(request: RunRequest, x_organization_id: str | None = Header(default=None)):
+def create_run(
+    request: RunRequest,
+    x_organization_id: str | None = Header(default=None),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+):
     if not x_organization_id or not hmac.compare_digest(x_organization_id, request.organization_id):
         raise HTTPException(status_code=403, detail="The organization header must match the authenticated request context.")
     run_id = str(uuid.uuid4())
@@ -30,8 +34,28 @@ def create_run(request: RunRequest, x_organization_id: str | None = Header(defau
         result = RunResponse(run_id=run_id, status="BLOCKED", mode="PROVIDER_DISABLED", message="AI provider is not configured. No work was executed and no result was fabricated.", evidence_record_ids=[])
     else:
         result = RunResponse(run_id=run_id, status="BLOCKED", mode="RULE_BASED", message="Execution is blocked until tenant-scoped evidence retrieval, authorized tools, approval policy and provider verification are configured.", evidence_record_ids=[])
-    save_run({"run_id": result.run_id, "organization_id": request.organization_id, "workflow": request.workflow, "status": result.status, "mode": result.mode, "message": result.message})
-    return result
+    key = (idempotency_key or "").strip() or None
+    if key and (len(key) > 128 or any(ord(char) < 33 or ord(char) > 126 for char in key)):
+        raise HTTPException(status_code=400, detail="Idempotency-Key must be 1-128 printable ASCII characters.")
+    record = save_run({
+        "run_id": result.run_id,
+        "organization_id": request.organization_id,
+        "workflow": request.workflow,
+        "status": result.status,
+        "mode": result.mode,
+        "message": result.message,
+        "idempotency_key": key,
+    })
+    if not record:
+        raise HTTPException(status_code=500, detail="Unable to persist workflow run.")
+    # A retry with the same key and organization returns the original persisted run.
+    return RunResponse(
+        run_id=record["run_id"],
+        status=record["status"],
+        mode=record["mode"],
+        message=record["message"],
+        evidence_record_ids=[],
+    )
 
 @app.get("/api/v1/runs/{run_id}", dependencies=[Depends(verify_service_key)])
 def read_run(run_id: str, organization_id: str = Query(...), x_organization_id: str | None = Header(default=None)):
