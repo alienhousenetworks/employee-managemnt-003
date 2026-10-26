@@ -38,8 +38,10 @@ class TaskListCreateView(TenantListCreate):
     def perform_create(self, serializer):
         project = serializer.validated_data["project"]
         if project.organization_id != self.request.organization.id:
-            from rest_framework.exceptions import ValidationError
             raise ValidationError({"project": "Project must belong to the active organization."})
+        assignee = serializer.validated_data.get("assignee")
+        if assignee and not self.request.organization.memberships.filter(user=assignee, is_active=True).exists():
+            raise ValidationError({"assignee": "Task assignee must belong to the active organization."})
         serializer.save(organization=self.request.organization, created_by=self.request.user)
 
 class TaskDependencyListCreateView(generics.ListCreateAPIView):
