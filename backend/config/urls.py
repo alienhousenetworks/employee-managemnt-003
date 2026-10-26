@@ -3,6 +3,10 @@ from django.urls import include, path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from apps.workforce.views import MeView
 
+admin.site.site_header = "AlienHouse Agency Workforce Administration"
+admin.site.site_title = "Agency Workforce Admin"
+admin.site.index_title = "System administration and operational controls"
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/v1/auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
