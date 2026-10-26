@@ -134,3 +134,19 @@ class Opportunity(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     class Meta:
         indexes = [models.Index(fields=["organization", "stage", "next_action_date"])]
+
+class ClientRenewal(models.Model):
+    class Status(models.TextChoices):
+        OPEN = "OPEN", "Open"
+        IN_PROGRESS = "IN_PROGRESS", "In progress"
+        RENEWED = "RENEWED", "Renewed"
+        CHURNED = "CHURNED", "Churned"
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="client_renewals")
+    client = models.ForeignKey(ClientAccount, on_delete=models.CASCADE, related_name="renewals")
+    project = models.ForeignKey(Project, null=True, blank=True, on_delete=models.SET_NULL, related_name="renewals")
+    renewal_date = models.DateField()
+    contract_value = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.OPEN)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
