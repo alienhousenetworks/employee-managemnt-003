@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import EmployeeProfile, DirectMessage, Notification
 
 class EmployeeProfileSerializer(serializers.ModelSerializer):
-    user_id = serializers.CharField(source="user_id", read_only=True)
+    user_id = serializers.CharField(read_only=True)
     class Meta:
         model = EmployeeProfile
         fields = ["id", "user_id", "employee_code", "display_name", "job_title", "department", "manager", "business_phone", "skills", "is_active", "created_at"]
