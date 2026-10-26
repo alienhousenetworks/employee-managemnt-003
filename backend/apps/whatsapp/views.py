@@ -115,12 +115,22 @@ class WhatsAppMessageListCreateView(generics.ListCreateAPIView):
             raise ValidationError({"contact": "Contact must belong to the active organization."})
         if contact.consent != WhatsAppContact.Consent.OPTED_IN:
             raise ValidationError({"consent": "Outbound messages require recorded opt-in consent."})
-        body = serializer.validated_data.get("body", "").strip()
+        # Fail closed: outbound messages must use a template explicitly allowlisted
+        # by the operator after approval in Meta WhatsApp Manager. Never treat a
+        # client-supplied template name as proof of provider approval.
         template = serializer.validated_data.get("template_name", "").strip()
-        if not body and not template:
-            raise ValidationError({"message": "Provide a message body or an approved template name."})
+        configured = {
+            name.strip()
+            for name in os.environ.get("WHATSAPP_APPROVED_TEMPLATES", "").split(",")
+            if name.strip()
+        }
+        if not configured:
+            raise ValidationError({"template_name": "Approved WhatsApp templates are not configured."})
+        if not template or template not in configured:
+            raise ValidationError({"template_name": "Use a template name in the configured approved-template allowlist."})
         serializer.save(
-            organization=self.request.organization, direction=WhatsAppMessage.Direction.OUTBOUND,
+            body="", organization=self.request.organization,
+            direction=WhatsAppMessage.Direction.OUTBOUND,
             status=WhatsAppMessage.Status.QUEUED, created_by=self.request.user,
         )
 
@@ -136,6 +146,13 @@ class WhatsAppMessageApprovalView(APIView):
             raise ValidationError({"status": "Only queued messages can be approved."})
         if message.contact.consent != WhatsAppContact.Consent.OPTED_IN:
             raise ValidationError({"consent": "Contact opt-in is required at approval time."})
+        configured = {
+            name.strip()
+            for name in os.environ.get("WHATSAPP_APPROVED_TEMPLATES", "").split(",")
+            if name.strip()
+        }
+        if not configured or not message.template_name or message.template_name not in configured:
+            raise ValidationError({"template_name": "The message template is not currently allowlisted."})
         message.status = WhatsAppMessage.Status.APPROVED
         message.approved_by = request.user
         message.save(update_fields=["status", "approved_by", "updated_at"])
