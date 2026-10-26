@@ -96,3 +96,15 @@ class ProjectDeliverable(models.Model):
     class Meta:
         ordering = ["-updated_at"]
         indexes = [models.Index(fields=["organization", "project", "status"])]
+
+class ServiceTemplate(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="service_templates")
+    service_line = models.CharField(max_length=40)
+    name = models.CharField(max_length=180)
+    description = models.TextField(blank=True)
+    default_tasks = models.JSONField(default=list, blank=True)
+    default_deliverables = models.JSONField(default=list, blank=True)
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["organization", "service_line", "name"], name="uniq_service_template")]
