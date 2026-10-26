@@ -108,3 +108,29 @@ class ServiceTemplate(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
         constraints = [models.UniqueConstraint(fields=["organization", "service_line", "name"], name="uniq_service_template")]
+
+class Opportunity(models.Model):
+    class Stage(models.TextChoices):
+        LEAD = "LEAD", "Lead"
+        QUALIFIED = "QUALIFIED", "Qualified"
+        DISCOVERY = "DISCOVERY", "Discovery"
+        PROPOSAL = "PROPOSAL", "Proposal"
+        NEGOTIATION = "NEGOTIATION", "Negotiation"
+        WON = "WON", "Won"
+        LOST = "LOST", "Lost"
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="opportunities")
+    client = models.ForeignKey(ClientAccount, null=True, blank=True, on_delete=models.PROTECT, related_name="opportunities")
+    name = models.CharField(max_length=200)
+    source = models.CharField(max_length=100, blank=True)
+    service_line = models.CharField(max_length=40)
+    stage = models.CharField(max_length=16, choices=Stage.choices, default=Stage.LEAD)
+    estimated_value = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    currency = models.CharField(max_length=3, default="INR")
+    probability_percent = models.PositiveSmallIntegerField(default=0)
+    next_action = models.CharField(max_length=240, blank=True)
+    next_action_date = models.DateField(null=True, blank=True)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="owned_opportunities")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    class Meta:
+        indexes = [models.Index(fields=["organization", "stage", "next_action_date"])]
