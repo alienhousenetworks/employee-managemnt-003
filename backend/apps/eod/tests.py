@@ -52,3 +52,19 @@ def test_eod_review_requires_manager_and_preserves_revision_history():
     assert report.status == "NEEDS_CHANGES"
     assert report.version == 3
     assert report.revisions.count() == 2
+
+@pytest.mark.django_db
+def test_eod_evidence_requires_structured_reference_and_rejects_client_verification():
+    User = get_user_model()
+    employee = User.objects.create_user(username="eod-evidence", password="strong-password-123")
+    org = Organization.objects.create(name="Evidence Agency", slug="evidence-agency")
+    Membership.objects.create(organization=org, user=employee, role="EMPLOYEE")
+    client = APIClient()
+    client.force_authenticate(employee)
+    headers = {"HTTP_X_ORGANIZATION_ID": str(org.id)}
+    invalid = client.post("/api/v1/eod/reports/", {"report_date": "2026-10-26", "evidence": [{"title": "Commit"}]}, format="json", **headers)
+    assert invalid.status_code == 400
+    forged = client.post("/api/v1/eod/reports/", {"report_date": "2026-10-26", "evidence": [{"title": "Commit", "type": "github", "reference": "https://github.com/example/repo/commit/abc", "verification_status": "LIVE_VERIFIED"}]}, format="json", **headers)
+    assert forged.status_code == 400
+    valid = client.post("/api/v1/eod/reports/", {"report_date": "2026-10-26", "evidence": [{"title": "Commit", "type": "github", "reference": "https://github.com/example/repo/commit/abc"}]}, format="json", **headers)
+    assert valid.status_code == 201
