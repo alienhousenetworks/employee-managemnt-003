@@ -261,7 +261,7 @@ class GitHubWebhookView(APIView):
                 item_type=item_type,
             ).update(
                 title=str(item.get("title", ""))[:240],
-                url=str(item.get("html_url", ""))[:2000],
+                url=str(item.get("html_url", ""))[:200],
                 state=state[:40],
                 synced_at=timezone.now(),
             )
