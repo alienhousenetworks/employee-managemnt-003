@@ -13,7 +13,7 @@ jobs:
       - run: pip install -e '.[dev]'
         working-directory: backend
       - name: Generate migration candidates for clean-schema smoke test
-        run: python manage.py makemigrations
+        run: python manage.py makemigrations organizations workforce feed delivery audit eod hr approvals whatsapp
         working-directory: backend
         env: { DJANGO_SECRET_KEY: ci-only-not-a-secret, DJANGO_DEBUG: 'true' }
       - name: Apply schema to a clean database
