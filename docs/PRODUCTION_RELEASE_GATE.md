@@ -12,7 +12,7 @@ This checklist is a hard gate, not a statement that the product has already pass
 
 ## 2. Database migration policy
 
-The current CI job generates candidate migrations in its ephemeral workspace, applies them to a clean database, runs `makemigrations --check --dry-run`, and uploads the candidate files as an artifact. Those files are not automatically committed. The latest successful candidate artifact is available from [CI run 40314154429](https://github.com/alienhousenetworks/employee-managemnt-003/actions/runs/40314154429/artifacts/12646650427).
+The current CI job uses PostgreSQL 16, generates candidate migrations in its ephemeral workspace, applies them to a clean database, runs `makemigrations --check --dry-run`, and uploads the candidate files as an artifact. It also performs a dump/restore smoke test against a temporary CI database. This does not validate production backup retention, point-in-time recovery, RPO or RTO. Those files are not automatically committed. The latest successful candidate artifact is available from [CI run 40314154429](https://github.com/alienhousenetworks/employee-managemnt-003/actions/runs/40314154429/artifacts/12646650427).
 
 Before deployment:
 1. Download the CI artifact named `generated-django-migration-candidates`.
@@ -65,7 +65,8 @@ Verify tenant boundaries with at least two organizations and users who belong to
 - Keep `AI_PROVIDER=disabled` until a real provider, evidence retrieval, tenant authorization, allowlisted tools, approval checks, cost ceilings and evaluations are enabled.
 - Verify the internal service key and organization context on every request.
 - Verify run reads require the same organization as the run record.
-- Configure a persistent protected `AI_RUN_STORE_PATH`; back up and restore it.
+- Verify an `Idempotency-Key` retry returns the same run only for the same organization and request payload; a changed payload with the same key must return HTTP 409.
+- Configure a persistent protected `AI_RUN_STORE_PATH`; back up and restore it. SQLite is still a single-instance persistence baseline, not a durable multi-replica queue.
 - Do not send raw HR/private-message data to an AI provider without explicit policy, data minimization, retention and audit controls.
 
 ## 8. Web and mobile
