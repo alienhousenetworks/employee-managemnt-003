@@ -1,11 +1,16 @@
+import hashlib
+import hmac
+import json
+import os
 from django.db import transaction
+from django.utils import timezone
 from rest_framework import generics, status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.exceptions import ValidationError, PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from apps.organizations.permissions import HasActiveOrganizationMembership
-from .models import ClientAccount, Project, Task, TaskDependency, ProjectDeliverable
+from .models import ClientAccount, Project, Task, TaskDependency, ProjectDeliverable, GitHubRepositoryLink, GitHubWorkItemLink, GitHubWebhookDelivery
 from .serializers import ClientSerializer, ProjectSerializer, TaskSerializer, TaskDependencySerializer, ProjectDeliverableSerializer
 
 class TenantListCreate(generics.ListCreateAPIView):
@@ -185,3 +190,82 @@ class GitHubWorkItemLinkListCreateView(generics.ListCreateAPIView):
         if task.project_id != repository.project_id:
             raise ValidationError({"task": "Task and repository must share a project."})
         serializer.save(organization=self.request.organization)
+
+
+class GitHubWebhookView(APIView):
+    """Accept only signed, idempotent GitHub webhook deliveries for enabled repositories."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    @transaction.atomic
+    def post(self, request):
+        secret = os.environ.get("GITHUB_WEBHOOK_SECRET", "")
+        if not secret:
+            return Response({"status": "NOT_CONFIGURED"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        supplied = request.headers.get("X-Hub-Signature-256", "")
+        expected = "sha256=" + hmac.new(secret.encode("utf-8"), request.body, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(supplied, expected):
+            return Response({"detail": "Invalid webhook signature."}, status=status.HTTP_403_FORBIDDEN)
+        delivery_id = request.headers.get("X-GitHub-Delivery", "").strip()
+        event_name = request.headers.get("X-GitHub-Event", "").strip()
+        if not delivery_id or len(delivery_id) > 120 or not event_name or len(event_name) > 80:
+            return Response({"detail": "Missing or invalid GitHub delivery metadata."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            payload = json.loads(request.body)
+        except (ValueError, TypeError):
+            return Response({"detail": "Invalid JSON payload."}, status=status.HTTP_400_BAD_REQUEST)
+        repository_name = str(payload.get("repository", {}).get("full_name", "")).strip()
+        if not repository_name:
+            return Response({"detail": "Repository identity is missing."}, status=status.HTTP_400_BAD_REQUEST)
+        links = GitHubRepositoryLink.objects.filter(
+            repository_full_name=repository_name,
+            is_enabled=True,
+            organization__is_active=True,
+        )
+        installation = payload.get("installation") or {}
+        installation_id = str(installation.get("id", "")) if installation.get("id") is not None else ""
+        if installation_id:
+            links = links.filter(installation_id=installation_id)
+        link = links.select_related("organization").first()
+        if not link:
+            # Unknown or disabled repositories are acknowledged but never processed.
+            return Response({"accepted": True, "ignored": True}, status=status.HTTP_202_ACCEPTED)
+        payload_hash = hashlib.sha256(request.body).hexdigest()
+        delivery, created = GitHubWebhookDelivery.objects.get_or_create(
+            organization=link.organization,
+            delivery_id=delivery_id,
+            defaults={"event_name": event_name, "payload_sha256": payload_hash},
+        )
+        if not created:
+            if delivery.payload_sha256 != payload_hash or delivery.event_name != event_name:
+                return Response({"detail": "Delivery ID was replayed with different content."}, status=status.HTTP_409_CONFLICT)
+            return Response({"accepted": True, "duplicate": True}, status=status.HTTP_200_OK)
+
+        item = None
+        item_type = ""
+        if event_name == "issues":
+            item = payload.get("issue") or {}
+            item_type = "issue"
+        elif event_name == "pull_request":
+            item = payload.get("pull_request") or {}
+            item_type = "pull_request"
+        if item and item.get("number") is not None:
+            external_id = str(item["number"])
+            state = str(item.get("state", ""))
+            if item.get("merged") is True:
+                state = "merged"
+            GitHubWorkItemLink.objects.filter(
+                organization=link.organization,
+                repository=link,
+                external_id=external_id,
+                item_type=item_type,
+            ).update(
+                title=str(item.get("title", ""))[:240],
+                url=str(item.get("html_url", ""))[:2000],
+                state=state[:40],
+                synced_at=timezone.now(),
+            )
+        delivery.processed = True
+        delivery.processed_at = timezone.now()
+        delivery.save(update_fields=["processed", "processed_at"])
+        return Response({"accepted": True, "duplicate": False}, status=status.HTTP_200_OK)
