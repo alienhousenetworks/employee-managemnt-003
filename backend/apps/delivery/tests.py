@@ -52,3 +52,29 @@ def test_deliverable_cannot_reference_another_tenant_project():
     response = client.post("/api/v1/delivery/deliverables/", {"project": str(project.id), "title": "Should be blocked"}, format="json", HTTP_X_ORGANIZATION_ID=str(org.id))
     assert response.status_code == 400
     assert not ProjectDeliverable.objects.filter(organization=org).exists()
+
+@pytest.mark.django_db
+def test_opportunity_rejects_foreign_tenant_client():
+    user = get_user_model().objects.create_user(username="crm-manager", password="strong-password-123")
+    org = Organization.objects.create(name="CRM Agency", slug="crm-agency")
+    other = Organization.objects.create(name="Foreign CRM", slug="foreign-crm")
+    Membership.objects.create(organization=org, user=user, role="SALES")
+    foreign_client = __import__("apps.delivery.models", fromlist=["ClientAccount"]).ClientAccount.objects.create(organization=other, name="Foreign Client")
+    client = APIClient()
+    client.force_authenticate(user)
+    response = client.post("/api/v1/delivery/opportunities/", {"client": str(foreign_client.id), "name": "Test opportunity", "service_line": "AI", "probability_percent": 25}, format="json", HTTP_X_ORGANIZATION_ID=str(org.id))
+    assert response.status_code == 400
+
+@pytest.mark.django_db
+def test_service_template_is_organization_scoped():
+    from .models import ServiceTemplate
+    user = get_user_model().objects.create_user(username="template-manager", password="strong-password-123")
+    org = Organization.objects.create(name="Template Agency", slug="template-agency")
+    other = Organization.objects.create(name="Other Templates", slug="other-templates")
+    Membership.objects.create(organization=org, user=user, role="MANAGER")
+    ServiceTemplate.objects.create(organization=other, service_line="AI", name="Foreign template")
+    client = APIClient()
+    client.force_authenticate(user)
+    response = client.get("/api/v1/delivery/service-templates/", HTTP_X_ORGANIZATION_ID=str(org.id))
+    assert response.status_code == 200
+    assert response.data == []
