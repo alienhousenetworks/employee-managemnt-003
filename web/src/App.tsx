@@ -70,8 +70,11 @@ export default function App() {
           const data = await apiGet<Employee[]>('/employees/', token!, organization!.id);
           if (!cancelled) setEmployees(Array.isArray(data) ? data : []);
         } else if (active === 'Messages') {
-          const data = await apiGet<DirectMessage[]>('/employees/messages/', token!, organization!.id);
-          if (!cancelled) setMessages(Array.isArray(data) ? data : []);
+          const [data, people] = await Promise.all([
+            apiGet<DirectMessage[]>('/employees/messages/', token!, organization!.id),
+            apiGet<Employee[]>('/employees/', token!, organization!.id),
+          ]);
+          if (!cancelled) { setMessages(Array.isArray(data) ? data : []); setEmployees(Array.isArray(people) ? people : []); }
         } else if (active === 'Notifications') {
           const data = await apiGet<Notice[]>('/employees/notifications/', token!, organization!.id);
           if (!cancelled) setNotices(Array.isArray(data) ? data : []);
