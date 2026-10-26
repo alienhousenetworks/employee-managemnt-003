@@ -42,7 +42,9 @@ Verify tenant boundaries with at least two organizations and users who belong to
 - Verify foreign-tenant clients/projects cannot be attached to opportunities, renewals, tasks, deliverables or GitHub links.
 - Verify task dependency cycle attempts fail and valid dependencies succeed.
 - Verify a deliverable cannot be marked delivered before QA approval.
-- Configure GitHub App credentials only in a secret manager; add signature verification, installation permission checks, webhook replay protection and periodic reconciliation before enabling automatic synchronization.
+- The `/api/v1/delivery/github/webhook/` endpoint now verifies `X-Hub-Signature-256` using `GITHUB_WEBHOOK_SECRET`, checks enabled repository/installation links, deduplicates delivery IDs, rejects delivery-ID reuse with changed payloads, and updates already-linked issue/PR records.
+- Configure the signing secret in a secret manager and test against GitHub's webhook delivery UI before enabling the endpoint.
+- GitHub App installation/OAuth lifecycle, least-privilege permission verification, webhook registration, linking new issues/PRs to tasks, failed-event retry/replay tooling and periodic reconciliation are still not implemented.
 
 ## 5. HR, EOD and approvals
 
