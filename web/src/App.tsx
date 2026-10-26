@@ -22,7 +22,7 @@ const nav = [
 ];
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1';
-const DJANGO_ADMIN_URL = API_BASE.replace(/\\/api\\/v1\\/?$/, '/admin/');
+const DJANGO_ADMIN_URL = API_BASE.replace(/\/api\/v1\/?$/, '/admin/');
 
 export default function App() {
   const [username, setUsername] = useState('');
