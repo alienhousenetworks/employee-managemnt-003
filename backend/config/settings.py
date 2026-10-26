@@ -12,7 +12,7 @@ INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
     "rest_framework", "corsheaders", "apps.organizations", "apps.workforce",
-    "apps.feed", "apps.delivery", "apps.audit", "apps.eod",
+    "apps.feed", "apps.delivery", "apps.audit", "apps.eod", "apps.hr",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware", "whitenoise.middleware.WhiteNoiseMiddleware",
