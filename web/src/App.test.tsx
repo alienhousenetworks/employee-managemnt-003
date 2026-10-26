@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import App from './App';
 
-describe('Agency Workforce shell', () => {
-  it('labels the foundation preview and avoids fake zero metrics', () => {
+describe('Agency Workforce authentication', () => {
+  it('shows sign-in and explains server-checked access', () => {
     render(<App />);
-    expect(screen.getByText('Foundation preview')).toBeTruthy();
-    expect(screen.getByText(/not zero values/i)).toBeTruthy();
+    expect(screen.getByText('Sign in to your workspace')).toBeTruthy();
+    expect(screen.getByLabelText('Username')).toBeTruthy();
+    expect(screen.getByLabelText('Password')).toBeTruthy();
   });
 });

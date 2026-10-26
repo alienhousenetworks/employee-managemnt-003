@@ -1,0 +1,1 @@
+Django migration files are generated and reviewed as part of the database schema release process. Run `python manage.py makemigrations hr` after the HR models change, inspect the generated migration, commit it, and run `python manage.py migrate` in staging before deploying.
