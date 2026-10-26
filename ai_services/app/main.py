@@ -1,4 +1,6 @@
+import hashlib
 import hmac
+import json
 import os
 import uuid
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
@@ -37,7 +39,13 @@ def create_run(
     key = (idempotency_key or "").strip() or None
     if key and (len(key) > 128 or any(ord(char) < 33 or ord(char) > 126 for char in key)):
         raise HTTPException(status_code=400, detail="Idempotency-Key must be 1-128 printable ASCII characters.")
-    record = save_run({
+    request_hash = hashlib.sha256(json.dumps({
+        "workflow": request.workflow,
+        "source_record_ids": request.source_record_ids,
+        "instruction": request.instruction,
+    }, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    try:
+        record = save_run({
         "run_id": result.run_id,
         "organization_id": request.organization_id,
         "workflow": request.workflow,
@@ -45,7 +53,10 @@ def create_run(
         "mode": result.mode,
         "message": result.message,
         "idempotency_key": key,
-    })
+        "request_hash": request_hash,
+        })
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     if not record:
         raise HTTPException(status_code=500, detail="Unable to persist workflow run.")
     # A retry with the same key and organization returns the original persisted run.
