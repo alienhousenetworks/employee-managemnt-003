@@ -126,3 +126,15 @@ class OpportunityListCreateView(TenantListCreate):
         if client and client.organization_id != self.request.organization.id:
             raise ValidationError({"client": "Client must belong to the active organization."})
         serializer.save(organization=self.request.organization)
+
+class ClientRenewalListCreateView(TenantListCreate):
+    model = ClientRenewal
+    serializer_class = ClientRenewalSerializer
+    def perform_create(self, serializer):
+        values = serializer.validated_data
+        if values["client"].organization_id != self.request.organization.id:
+            raise ValidationError({"client": "Client must belong to the active organization."})
+        project = values.get("project")
+        if project and project.organization_id != self.request.organization.id:
+            raise ValidationError({"project": "Project must belong to the active organization."})
+        serializer.save(organization=self.request.organization)
