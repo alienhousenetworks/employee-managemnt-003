@@ -19,13 +19,13 @@ class ApiClient {
     final token = await _storage.read(key:'access_token'); if (token == null) throw Exception('You are signed out.');
     final response = await _client.get(Uri.parse('$baseUrl/me/'), headers:{'Authorization':'Bearer $token','Accept':'application/json'});
     if (response.statusCode == 401) { await signOut(); throw Exception('Your session expired. Please sign in again.'); }
-    if (response.statusCode != 200) throw Exception('Unable to load your profile (' + response.statusCode.toString() + ').');
+    if (response.statusCode != 200) throw Exception('Unable to load your profile (${response.statusCode}).');
     return jsonDecode(response.body) as Map<String,dynamic>;
   }
   Future<List<dynamic>> feed(String organizationId) async {
     final token = await _storage.read(key:'access_token'); if (token == null) throw Exception('You are signed out.');
     final response = await _client.get(Uri.parse('$baseUrl/feed/posts/'), headers:{'Authorization':'Bearer $token','X-Organization-ID':organizationId,'Accept':'application/json'});
-    if (response.statusCode != 200) throw Exception('Unable to load the feed (' + response.statusCode.toString() + ').');
+    if (response.statusCode != 200) throw Exception('Unable to load the feed (${response.statusCode}).');
     final body = jsonDecode(response.body); return body is List ? body : (body['results'] as List? ?? <dynamic>[]);
   }
   Future<void> signOut() async { await _storage.delete(key:'access_token'); await _storage.delete(key:'refresh_token'); }
