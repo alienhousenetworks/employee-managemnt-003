@@ -25,3 +25,30 @@ def test_eod_requires_active_tenant_membership():
     client = APIClient(); client.force_authenticate(user)
     response = client.get("/api/v1/eod/reports/")
     assert response.status_code == 403
+
+@pytest.mark.django_db
+def test_eod_review_requires_manager_and_preserves_revision_history():
+    User = get_user_model()
+    employee = User.objects.create_user(username="eod-employee", password="strong-password-123")
+    manager = User.objects.create_user(username="eod-manager", password="strong-password-123")
+    org = Organization.objects.create(name="EOD Review Agency", slug="eod-review-agency")
+    Membership.objects.create(organization=org, user=employee, role="EMPLOYEE")
+    Membership.objects.create(organization=org, user=manager, role="MANAGER")
+    report = EODReport.objects.create(organization=org, employee=employee, report_date="2026-10-26", status="SUBMITTED")
+    client = APIClient()
+    client.force_authenticate(employee)
+    headers = {"HTTP_X_ORGANIZATION_ID": str(org.id)}
+    denied = client.post(f"/api/v1/eod/reports/{report.id}/review/", {"action": "start_review"}, format="json", **headers)
+    assert denied.status_code == 403
+    client.force_authenticate(manager)
+    started = client.post(f"/api/v1/eod/reports/{report.id}/review/", {"action": "start_review"}, format="json", **headers)
+    assert started.status_code == 200
+    assert started.data["status"] == "IN_REVIEW"
+    missing_note = client.post(f"/api/v1/eod/reports/{report.id}/review/", {"action": "needs_changes"}, format="json", **headers)
+    assert missing_note.status_code == 400
+    returned = client.post(f"/api/v1/eod/reports/{report.id}/review/", {"action": "needs_changes", "note": "Please add evidence"}, format="json", **headers)
+    assert returned.status_code == 200
+    report.refresh_from_db()
+    assert report.status == "NEEDS_CHANGES"
+    assert report.version == 3
+    assert report.revisions.count() == 3
