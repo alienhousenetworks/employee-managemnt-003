@@ -20,3 +20,20 @@ class EmployeeRequestSerializer(serializers.ModelSerializer):
         model = EmployeeRequest
         fields = ["id", "request_type", "title", "details", "status", "created_at"]
         read_only_fields = ["id", "status", "created_at"]
+
+from .models import ShiftSchedule, LeaveBalance
+
+class ShiftScheduleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ShiftSchedule
+        fields = ["id", "employee", "shift_date", "starts_at", "ends_at", "timezone_name", "created_by", "created_at"]
+        read_only_fields = ["id", "created_by", "created_at"]
+
+class LeaveBalanceSerializer(serializers.ModelSerializer):
+    available_days = serializers.SerializerMethodField()
+    class Meta:
+        model = LeaveBalance
+        fields = ["id", "employee", "leave_type", "period_start", "period_end", "entitled_days", "accrued_days", "used_days", "adjusted_days", "available_days", "updated_at"]
+        read_only_fields = fields
+    def get_available_days(self, obj):
+        return obj.entitled_days + obj.accrued_days + obj.adjusted_days - obj.used_days
