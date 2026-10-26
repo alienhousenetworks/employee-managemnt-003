@@ -1,5 +1,6 @@
 import os
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 def connect():
@@ -12,7 +13,7 @@ def connect():
     return db
 
 def save_run(run):
-    with connect() as db:
+    with closing(connect()) as db, db:
         db.execute("INSERT INTO workflow_runs(run_id, organization_id, workflow, status, mode, message, evidence_json) VALUES(?,?,?,?,?,?,?)", (run["run_id"], run["organization_id"], run["workflow"], run["status"], run["mode"], run["message"], "[]"))
         row = db.execute("SELECT * FROM workflow_runs WHERE run_id=? AND organization_id=?", (run["run_id"], run["organization_id"])).fetchone()
         return dict(row)
