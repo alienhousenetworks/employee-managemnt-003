@@ -60,3 +60,31 @@ class EmployeeRequestListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated, HasActiveOrganizationMembership]
     def get_queryset(self): return EmployeeRequest.objects.filter(organization=self.request.organization, employee=self.request.user).order_by("-created_at")
     def perform_create(self, serializer): serializer.save(organization=self.request.organization, employee=self.request.user)
+
+from .models import ShiftSchedule, LeaveBalance
+from .serializers import ShiftScheduleSerializer, LeaveBalanceSerializer
+
+class ShiftScheduleListCreateView(generics.ListCreateAPIView):
+    serializer_class = ShiftScheduleSerializer
+    permission_classes = [IsAuthenticated, HasActiveOrganizationMembership]
+    def get_queryset(self):
+        qs = ShiftSchedule.objects.filter(organization=self.request.organization).select_related("employee")
+        if self.request.membership.role not in {"OWNER", "ADMIN", "HR", "MANAGER"}:
+            qs = qs.filter(employee=self.request.user)
+        return qs.order_by("shift_date", "starts_at")
+    def perform_create(self, serializer):
+        if self.request.membership.role not in {"OWNER", "ADMIN", "HR", "MANAGER"}:
+            raise PermissionDenied("Only HR or managers can schedule shifts.")
+        employee = serializer.validated_data["employee"]
+        from apps.organizations.models import Membership
+        if not Membership.objects.filter(organization=self.request.organization, user=employee, is_active=True).exists():
+            raise ValidationError({"employee": "Employee must be an active member of this organization."})
+        if serializer.validated_data["ends_at"] <= serializer.validated_data["starts_at"]:
+            raise ValidationError({"ends_at": "Shift end must be after shift start on the same date."})
+        serializer.save(organization=self.request.organization, created_by=self.request.user)
+
+class MyLeaveBalanceListView(generics.ListAPIView):
+    serializer_class = LeaveBalanceSerializer
+    permission_classes = [IsAuthenticated, HasActiveOrganizationMembership]
+    def get_queryset(self):
+        return LeaveBalance.objects.filter(organization=self.request.organization, employee=self.request.user).order_by("leave_type", "-period_start")
