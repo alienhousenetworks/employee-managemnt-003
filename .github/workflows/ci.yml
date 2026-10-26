@@ -12,12 +12,31 @@ jobs:
         with: { python-version: '3.12', cache: 'pip', cache-dependency-path: backend/pyproject.toml }
       - run: pip install -e '.[dev]'
         working-directory: backend
+      - name: Generate migration candidates for clean-schema smoke test
+        run: python manage.py makemigrations
+        working-directory: backend
+        env: { DJANGO_SECRET_KEY: ci-only-not-a-secret, DJANGO_DEBUG: 'true' }
+      - name: Apply schema to a clean database
+        run: python manage.py migrate --noinput
+        working-directory: backend
+        env: { DJANGO_SECRET_KEY: ci-only-not-a-secret, DJANGO_DEBUG: 'true' }
+      - name: Verify model and migration state
+        run: python manage.py makemigrations --check --dry-run
+        working-directory: backend
+        env: { DJANGO_SECRET_KEY: ci-only-not-a-secret, DJANGO_DEBUG: 'true' }
       - run: python manage.py check
         working-directory: backend
         env: { DJANGO_SECRET_KEY: ci-only-not-a-secret, DJANGO_DEBUG: 'true' }
       - run: pytest
         working-directory: backend
         env: { DJANGO_SECRET_KEY: ci-only-not-a-secret, DJANGO_DEBUG: 'true' }
+      - name: Upload generated migration candidates for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-django-migration-candidates
+          path: backend/apps/*/migrations/*.py
+          if-no-files-found: warn
   ai-service:
     runs-on: ubuntu-latest
     steps:
