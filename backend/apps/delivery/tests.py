@@ -78,3 +78,30 @@ def test_service_template_is_organization_scoped():
     response = client.get("/api/v1/delivery/service-templates/", HTTP_X_ORGANIZATION_ID=str(org.id))
     assert response.status_code == 200
     assert response.data == []
+
+
+@pytest.mark.django_db
+def test_project_rejects_foreign_tenant_manager_and_task_assignee():
+    User = get_user_model()
+    member = User.objects.create_user(username="delivery-local-member", password="strong-password-123")
+    foreign = User.objects.create_user(username="delivery-foreign-member", password="strong-password-123")
+    org = Organization.objects.create(name="Assignment Tenant", slug="assignment-tenant")
+    other = Organization.objects.create(name="Foreign Assignment Tenant", slug="foreign-assignment-tenant")
+    Membership.objects.create(organization=org, user=member, role="MANAGER")
+    Membership.objects.create(organization=other, user=foreign, role="EMPLOYEE")
+    client = APIClient()
+    client.force_authenticate(member)
+    project_response = client.post(
+        "/api/v1/delivery/projects/",
+        {"name": "Cross-tenant manager", "service_line": "SOFTWARE", "project_manager": str(foreign.id)},
+        format="json", HTTP_X_ORGANIZATION_ID=str(org.id),
+    )
+    assert project_response.status_code == 400
+    project = Project.objects.create(organization=org, name="Local project", service_line="SOFTWARE")
+    task_response = client.post(
+        "/api/v1/delivery/tasks/",
+        {"project": str(project.id), "title": "Cross-tenant assignee", "assignee": str(foreign.id)},
+        format="json", HTTP_X_ORGANIZATION_ID=str(org.id),
+    )
+    assert task_response.status_code == 400
+    assert not Task.objects.filter(organization=org).exists()
