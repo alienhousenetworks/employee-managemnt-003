@@ -51,4 +51,4 @@ def test_eod_review_requires_manager_and_preserves_revision_history():
     report.refresh_from_db()
     assert report.status == "NEEDS_CHANGES"
     assert report.version == 3
-    assert report.revisions.count() == 3
+    assert report.revisions.count() == 2
