@@ -110,3 +110,19 @@ class DeliverableTransitionView(APIView):
         deliverable.version += 1
         deliverable.save(update_fields=["status", "qa_notes", "approved_by", "version", "updated_at"])
         return Response(ProjectDeliverableSerializer(deliverable).data)
+
+from .models import ServiceTemplate, Opportunity, ClientRenewal, GitHubRepositoryLink, GitHubWorkItemLink
+from .serializers import ServiceTemplateSerializer, OpportunitySerializer, ClientRenewalSerializer, GitHubRepositoryLinkSerializer, GitHubWorkItemLinkSerializer
+
+class ServiceTemplateListCreateView(TenantListCreate):
+    model = ServiceTemplate
+    serializer_class = ServiceTemplateSerializer
+
+class OpportunityListCreateView(TenantListCreate):
+    model = Opportunity
+    serializer_class = OpportunitySerializer
+    def perform_create(self, serializer):
+        client = serializer.validated_data.get("client")
+        if client and client.organization_id != self.request.organization.id:
+            raise ValidationError({"client": "Client must belong to the active organization."})
+        serializer.save(organization=self.request.organization)
