@@ -14,4 +14,4 @@ def test_feed_is_tenant_scoped_and_persists():
     client = APIClient(); client.force_authenticate(user)
     response = client.get("/api/v1/feed/posts/", HTTP_X_ORGANIZATION_ID=str(org.id))
     assert response.status_code == 200
-    assert response.data["results"] == [] or response.data == []
+    assert len(response.data) == 0
