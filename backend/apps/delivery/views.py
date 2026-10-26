@@ -110,3 +110,58 @@ class DeliverableTransitionView(APIView):
         deliverable.version += 1
         deliverable.save(update_fields=["status", "qa_notes", "approved_by", "version", "updated_at"])
         return Response(ProjectDeliverableSerializer(deliverable).data)
+
+from .models import ServiceTemplate, Opportunity, ClientRenewal, GitHubRepositoryLink, GitHubWorkItemLink
+from .serializers import ServiceTemplateSerializer, OpportunitySerializer, ClientRenewalSerializer, GitHubRepositoryLinkSerializer, GitHubWorkItemLinkSerializer
+
+class ServiceTemplateListCreateView(TenantListCreate):
+    model = ServiceTemplate
+    serializer_class = ServiceTemplateSerializer
+
+class OpportunityListCreateView(TenantListCreate):
+    model = Opportunity
+    serializer_class = OpportunitySerializer
+    def perform_create(self, serializer):
+        client = serializer.validated_data.get("client")
+        if client and client.organization_id != self.request.organization.id:
+            raise ValidationError({"client": "Client must belong to the active organization."})
+        serializer.save(organization=self.request.organization)
+
+class ClientRenewalListCreateView(TenantListCreate):
+    model = ClientRenewal
+    serializer_class = ClientRenewalSerializer
+    def perform_create(self, serializer):
+        values = serializer.validated_data
+        if values["client"].organization_id != self.request.organization.id:
+            raise ValidationError({"client": "Client must belong to the active organization."})
+        project = values.get("project")
+        if project and project.organization_id != self.request.organization.id:
+            raise ValidationError({"project": "Project must belong to the active organization."})
+        serializer.save(organization=self.request.organization)
+
+class GitHubRepositoryLinkListCreateView(generics.ListCreateAPIView):
+    serializer_class = GitHubRepositoryLinkSerializer
+    permission_classes = [IsAuthenticated, HasActiveOrganizationMembership]
+    def get_queryset(self):
+        return GitHubRepositoryLink.objects.filter(organization=self.request.organization).select_related("project")
+    def perform_create(self, serializer):
+        project = serializer.validated_data["project"]
+        if project.organization_id != self.request.organization.id:
+            raise ValidationError({"project": "Project must belong to the active organization."})
+        serializer.save(organization=self.request.organization)
+
+class GitHubWorkItemLinkListCreateView(generics.ListCreateAPIView):
+    serializer_class = GitHubWorkItemLinkSerializer
+    permission_classes = [IsAuthenticated, HasActiveOrganizationMembership]
+    def get_queryset(self):
+        return GitHubWorkItemLink.objects.filter(organization=self.request.organization)
+    def perform_create(self, serializer):
+        task = serializer.validated_data["task"]
+        repository = serializer.validated_data["repository"]
+        if task.organization_id != self.request.organization.id:
+            raise ValidationError({"task": "Task is outside the active organization."})
+        if repository.organization_id != self.request.organization.id:
+            raise ValidationError({"repository": "Repository is outside the active organization."})
+        if task.project_id != repository.project_id:
+            raise ValidationError({"task": "Task and repository must share a project."})
+        serializer.save(organization=self.request.organization)
