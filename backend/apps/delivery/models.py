@@ -1,6 +1,7 @@
 import uuid
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 from apps.organizations.models import Organization
 
 class ClientAccount(models.Model):
@@ -175,3 +176,23 @@ class GitHubWorkItemLink(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
         constraints = [models.UniqueConstraint(fields=["repository", "external_id", "item_type"], name="uniq_github_work_item")]
+
+
+class GitHubWebhookDelivery(models.Model):
+    """Durable idempotency ledger for signed GitHub webhook deliveries."""
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="github_webhook_deliveries")
+    delivery_id = models.CharField(max_length=120)
+    event_name = models.CharField(max_length=80)
+    payload_sha256 = models.CharField(max_length=64)
+    processed = models.BooleanField(default=False)
+    received_at = models.DateTimeField(default=timezone.now)
+    processed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "delivery_id"],
+                name="uniq_github_delivery_per_org",
+            )
+        ]
+        indexes = [models.Index(fields=["organization", "processed", "received_at"])]

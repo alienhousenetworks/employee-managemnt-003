@@ -1,8 +1,11 @@
+import hashlib
+import hmac
+import json
 import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from apps.organizations.models import Organization, Membership
-from .models import Project, Task, TaskDependency, ProjectDeliverable
+from .models import Project, Task, TaskDependency, ProjectDeliverable, GitHubRepositoryLink, GitHubWorkItemLink, GitHubWebhookDelivery
 
 @pytest.mark.django_db
 def test_task_dependency_rejects_cycles():
@@ -105,3 +108,68 @@ def test_project_rejects_foreign_tenant_manager_and_task_assignee():
     )
     assert task_response.status_code == 400
     assert not Task.objects.filter(organization=org).exists()
+
+
+@pytest.mark.django_db
+def test_github_webhook_requires_signature_and_deduplicates_delivery(monkeypatch):
+    monkeypatch.setenv("GITHUB_WEBHOOK_SECRET", "test-github-webhook-secret")
+    user = get_user_model().objects.create_user(username="github-webhook-owner", password="strong-password-123")
+    org = Organization.objects.create(name="Webhook Agency", slug="webhook-agency")
+    Membership.objects.create(organization=org, user=user, role="MANAGER")
+    project = Project.objects.create(organization=org, name="Webhook Project", service_line="SOFTWARE")
+    task = Task.objects.create(organization=org, project=project, title="Implement issue 17", created_by=user)
+    repository = GitHubRepositoryLink.objects.create(
+        organization=org, project=project, repository_full_name="alienhousenetworks/example",
+        repository_url="https://github.com/alienhousenetworks/example", installation_id="123", is_enabled=True,
+    )
+    item = GitHubWorkItemLink.objects.create(
+        organization=org, task=task, repository=repository, external_id="17",
+        item_type="issue", title="Old title", url="https://github.com/alienhousenetworks/example/issues/17", state="open",
+    )
+    payload = {
+        "action": "closed",
+        "installation": {"id": 123},
+        "repository": {"full_name": "alienhousenetworks/example"},
+        "issue": {"number": 17, "title": "Issue completed", "html_url": "https://github.com/alienhousenetworks/example/issues/17", "state": "closed"},
+    }
+    raw = json.dumps(payload, separators=(",", ":")).encode()
+    signature = "sha256=" + hmac.new(b"test-github-webhook-secret", raw, hashlib.sha256).hexdigest()
+    client = APIClient()
+    headers = {
+        "HTTP_X_HUB_SIGNATURE_256": signature,
+        "HTTP_X_GITHUB_DELIVERY": "delivery-abc-123",
+        "HTTP_X_GITHUB_EVENT": "issues",
+    }
+    invalid = client.post("/api/v1/delivery/github/webhook/", data=raw, content_type="application/json",
+                          HTTP_X_HUB_SIGNATURE_256="sha256=invalid",
+                          HTTP_X_GITHUB_DELIVERY="delivery-abc-123", HTTP_X_GITHUB_EVENT="issues")
+    assert invalid.status_code == 403
+    missing_installation = {**payload}
+    missing_installation.pop("installation")
+    missing_raw = json.dumps(missing_installation, separators=(",", ":")).encode()
+    missing_signature = "sha256=" + hmac.new(b"test-github-webhook-secret", missing_raw, hashlib.sha256).hexdigest()
+    missing = client.post(
+        "/api/v1/delivery/github/webhook/", data=missing_raw, content_type="application/json",
+        HTTP_X_HUB_SIGNATURE_256=missing_signature, HTTP_X_GITHUB_DELIVERY="delivery-missing-installation",
+        HTTP_X_GITHUB_EVENT="issues",
+    )
+    assert missing.status_code == 403
+    first = client.post("/api/v1/delivery/github/webhook/", data=raw, content_type="application/json", **headers)
+    assert first.status_code == 200
+    assert first.data["duplicate"] is False
+    item.refresh_from_db()
+    assert item.state == "closed"
+    assert item.title == "Issue completed"
+    duplicate = client.post("/api/v1/delivery/github/webhook/", data=raw, content_type="application/json", **headers)
+    assert duplicate.status_code == 200
+    assert duplicate.data["duplicate"] is True
+    assert GitHubWebhookDelivery.objects.filter(organization=org, delivery_id="delivery-abc-123").count() == 1
+    changed_payload = {**payload, "action": "reopened"}
+    changed_raw = json.dumps(changed_payload, separators=(",", ":")).encode()
+    changed_signature = "sha256=" + hmac.new(b"test-github-webhook-secret", changed_raw, hashlib.sha256).hexdigest()
+    replay = client.post(
+        "/api/v1/delivery/github/webhook/", data=changed_raw, content_type="application/json",
+        HTTP_X_HUB_SIGNATURE_256=changed_signature, HTTP_X_GITHUB_DELIVERY="delivery-abc-123",
+        HTTP_X_GITHUB_EVENT="issues",
+    )
+    assert replay.status_code == 409

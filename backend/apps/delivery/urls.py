@@ -2,8 +2,10 @@ from django.urls import path
 from .views import (
     ClientListCreateView, ProjectListCreateView, TaskListCreateView, ServiceTemplateListCreateView, OpportunityListCreateView, ClientRenewalListCreateView, GitHubRepositoryLinkListCreateView, GitHubWorkItemLinkListCreateView,
     TaskDependencyListCreateView, ProjectDeliverableListCreateView, DeliverableTransitionView,
+    GitHubWebhookView,
 )
 urlpatterns = [
+    path("github/webhook/", GitHubWebhookView.as_view(), name="github-webhook"),
     path("clients/", ClientListCreateView.as_view(), name="clients"),
     path("service-templates/", ServiceTemplateListCreateView.as_view(), name="service-templates"),
     path("opportunities/", OpportunityListCreateView.as_view(), name="opportunities"),

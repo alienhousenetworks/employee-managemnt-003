@@ -12,7 +12,7 @@ This checklist is a hard gate, not a statement that the product has already pass
 
 ## 2. Database migration policy
 
-The current CI job generates candidate migrations in its ephemeral workspace, applies them to a clean database, runs `makemigrations --check --dry-run`, and uploads the candidate files as an artifact. Those files are not automatically committed. The latest successful candidate artifact is available from [CI run 40314154429](https://github.com/alienhousenetworks/employee-managemnt-003/actions/runs/40314154429/artifacts/12646650427).
+The current CI job uses PostgreSQL 16, generates candidate migrations in its ephemeral workspace, applies them to a clean database, runs `makemigrations --check --dry-run`, and uploads the candidate files as an artifact. It also performs a dump/restore smoke test against a temporary CI database. This does not validate production backup retention, point-in-time recovery, RPO or RTO. Those files are not automatically committed. The latest successful candidate artifact is available from [CI run 40314154429](https://github.com/alienhousenetworks/employee-managemnt-003/actions/runs/40314154429/artifacts/12646650427).
 
 Before deployment:
 1. Download the CI artifact named `generated-django-migration-candidates`.
@@ -42,7 +42,9 @@ Verify tenant boundaries with at least two organizations and users who belong to
 - Verify foreign-tenant clients/projects cannot be attached to opportunities, renewals, tasks, deliverables or GitHub links.
 - Verify task dependency cycle attempts fail and valid dependencies succeed.
 - Verify a deliverable cannot be marked delivered before QA approval.
-- Configure GitHub App credentials only in a secret manager; add signature verification, installation permission checks, webhook replay protection and periodic reconciliation before enabling automatic synchronization.
+- The `/api/v1/delivery/github/webhook/` endpoint now verifies `X-Hub-Signature-256` using `GITHUB_WEBHOOK_SECRET`, checks enabled repository/installation links, deduplicates delivery IDs, rejects delivery-ID reuse with changed payloads, and updates already-linked issue/PR records.
+- Configure the signing secret in a secret manager and test against GitHub's webhook delivery UI before enabling the endpoint.
+- GitHub App installation/OAuth lifecycle, least-privilege permission verification, webhook registration, linking new issues/PRs to tasks, failed-event retry/replay tooling and periodic reconciliation are still not implemented.
 
 ## 5. HR, EOD and approvals
 
@@ -65,7 +67,8 @@ Verify tenant boundaries with at least two organizations and users who belong to
 - Keep `AI_PROVIDER=disabled` until a real provider, evidence retrieval, tenant authorization, allowlisted tools, approval checks, cost ceilings and evaluations are enabled.
 - Verify the internal service key and organization context on every request.
 - Verify run reads require the same organization as the run record.
-- Configure a persistent protected `AI_RUN_STORE_PATH`; back up and restore it.
+- Verify an `Idempotency-Key` retry returns the same run only for the same organization and request payload; a changed payload with the same key must return HTTP 409.
+- Configure a persistent protected `AI_RUN_STORE_PATH`; back up and restore it. SQLite is still a single-instance persistence baseline, not a durable multi-replica queue.
 - Do not send raw HR/private-message data to an AI provider without explicit policy, data minimization, retention and audit controls.
 
 ## 8. Web and mobile
