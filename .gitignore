@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.coverage
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+backend/db.sqlite3
+backend/staticfiles/
+# Web
+node_modules/
+dist/
+coverage/
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+.flutter-plugins
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
