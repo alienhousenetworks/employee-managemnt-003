@@ -11,7 +11,7 @@ def test_employee_can_create_and_submit_own_eod():
     Membership.objects.create(organization=org, user=user, role="EMPLOYEE")
     client = APIClient(); client.force_authenticate(user)
     headers = {"HTTP_X_ORGANIZATION_ID": str(org.id)}
-    response = client.post("/api/v1/eod/reports/", {"report_date":"2026-10-26", "completed_work":"Reviewed PR #17", "evidence":[{"type":"github_pr","id":"17"}]}, format="json", **headers)
+    response = client.post("/api/v1/eod/reports/", {"report_date":"2026-10-26", "completed_work":"Reviewed PR #17", "evidence":[{"title":"Pull request 17","type":"github_pr","reference":"https://github.com/example/repo/pull/17"}]}, format="json", **headers)
     assert response.status_code == 201
     report_id = response.data["id"]
     response = client.post(f"/api/v1/eod/reports/{report_id}/submit/", {}, format="json", **headers)
