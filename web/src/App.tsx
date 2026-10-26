@@ -10,6 +10,8 @@ type Notice = { id: string; kind: string; title: string; body: string; created_a
 type EODReport = { id: string; report_date: string; status: string; completed_work: string; in_progress: string; blockers: string; next_day_priorities: string; evidence: Array<{title:string;type:string;reference:string}>; version: number; review_note: string };
 type LeaveRequest = { id: string; leave_type: string; start_date: string; end_date: string; reason: string; status: string };
 type AttendanceEntry = { id: string; started_at: string; ended_at: string | null; status: string; note: string };
+type ClientAccount = { id: string; name: string; status: string; account_owner: string | null; created_at: string };
+type AgencyProject = { id: string; client: string | null; name: string; service_line: string; description: string; status: string; due_date: string | null; created_at: string };
 const nav = [
   { label: 'Overview', icon: LayoutDashboard }, { label: 'Company feed', icon: MessageCircle },
   { label: 'My work', icon: CheckCheck }, { label: 'Projects & clients', icon: BriefcaseBusiness },
@@ -33,6 +35,13 @@ export default function App() {
   const [eodReports, setEodReports] = useState<EODReport[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [attendanceEntries, setAttendanceEntries] = useState<AttendanceEntry[]>([]);
+  const [clients, setClients] = useState<ClientAccount[]>([]);
+  const [projects, setProjects] = useState<AgencyProject[]>([]);
+  const [clientName, setClientName] = useState('');
+  const [projectName, setProjectName] = useState('');
+  const [projectServiceLine, setProjectServiceLine] = useState('SOFTWARE');
+  const [projectClientId, setProjectClientId] = useState('');
+  const [projectDueDate, setProjectDueDate] = useState('');
   const [eodDate, setEodDate] = useState(new Date().toISOString().slice(0, 10));
   const [eodCompleted, setEodCompleted] = useState('');
   const [eodInProgress, setEodInProgress] = useState('');
@@ -117,6 +126,34 @@ export default function App() {
     setToken(null); setUser(null); setOrganization(null); setPosts([]); setEmployees([]); setMessages([]); setNotices([]); setPassword(''); setError('');
   }
 
+  async function createClient(event: FormEvent) {
+    event.preventDefault();
+    if (!token || !organization) return;
+    try {
+      const created = await apiPost<ClientAccount>('/delivery/clients/', { name: clientName.trim() }, token, organization.id);
+      setClients(current => [created, ...current]);
+      setClientName('');
+    } catch (err) { setError(err instanceof Error ? err.message : 'Client could not be created.'); }
+  }
+
+  async function createProject(event: FormEvent) {
+    event.preventDefault();
+    if (!token || !organization) return;
+    try {
+      const payload: Record<string, string | null> = {
+        name: projectName.trim(),
+        service_line: projectServiceLine,
+        client: projectClientId || null,
+        due_date: projectDueDate || null,
+      };
+      const created = await apiPost<AgencyProject>('/delivery/projects/', payload, token, organization.id);
+      setProjects(current => [created, ...current]);
+      setProjectName('');
+      setProjectDueDate('');
+      setProjectClientId('');
+    } catch (err) { setError(err instanceof Error ? err.message : 'Project could not be created.'); }
+  }
+
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
     if (!token || !organization || !recipient || !messageBody.trim()) return;
@@ -189,6 +226,10 @@ export default function App() {
     <section className="panel wide"><h3>Company feed</h3>{posts.length ? <div className="feedbox">{posts.map(post => <article className="feedpost" key={post.id}><strong>{post.author_name}</strong><div className="muted" style={{fontSize:12, marginTop:4}}>{post.post_type} · {new Date(post.created_at).toLocaleString()}</div><p>{post.body}</p><span className="muted">{post.reaction_count} reactions</span></article>)}</div> : <p className="muted">No accessible posts were returned by the API, or the feed has not been populated.</p>}</section>
     <section className="panel"><h3>Quick actions</h3><div className="rows">{['Draft EOD report','Create a task','Request leave','Ask AI assistant'].map(item => <div className="rowitem" key={item}><span>{item}</span><span className="muted">→</span></div>)}</div></section>
   </div> : active === 'People' ? <section className="panel"><h3>Employee directory</h3><label className="searchbox"><Search size={16}/><input aria-label="Search people" placeholder="Search name, role, department or employee code" value={search} onChange={e => setSearch(e.target.value)} /></label>{sectionLoading ? <p className="muted">Loading directory…</p> : filteredEmployees.length ? <div className="rows">{filteredEmployees.map(employee => <article className="rowitem" key={employee.id}><div><strong>{employee.display_name}</strong><div className="muted">{employee.job_title || 'Role not set'} · {employee.department || 'Department not set'} · {employee.employee_code}</div></div></article>)}</div> : <p className="muted">No active employee profiles found for this organization.</p>}</section>
+  : active === 'Projects & clients' ? <div className="grid">
+    <section className="panel"><h3>Client onboarding</h3><p className="muted">Create an agency client record. Client-specific intake forms, contracts and approvals are not yet implemented.</p><form className="message-form" onSubmit={createClient}><label>Client / company name<input value={clientName} onChange={e => setClientName(e.target.value)} required maxLength={200} placeholder="Company name" /></label><button className="primary" type="submit">Create client</button></form><h3>Clients</h3>{sectionLoading ? <p className="muted">Loading clients…</p> : clients.length ? <div className="rows">{clients.map(client => <article className="rowitem" key={client.id}><div><strong>{client.name}</strong><div className="muted">{client.status}</div></div></article>)}</div> : <p className="muted">No clients are available for this organization.</p>}</section>
+    <section className="panel"><h3>Project setup</h3><form className="message-form" onSubmit={createProject}><label>Project name<input value={projectName} onChange={e => setProjectName(e.target.value)} required maxLength={200} /></label><label>Service line<select value={projectServiceLine} onChange={e => setProjectServiceLine(e.target.value)}><option value="SOFTWARE">Software development</option><option value="AI">AI & automation</option><option value="MARKETING">Digital marketing</option><option value="CREATIVE">Creative services</option><option value="CONSULTING">Consulting</option><option value="OTHER">Other</option></select></label><label>Client<select value={projectClientId} onChange={e => setProjectClientId(e.target.value)}><option value="">No client linked</option>{clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label><label>Due date<input type="date" value={projectDueDate} onChange={e => setProjectDueDate(e.target.value)} /></label><button className="primary" type="submit">Create project</button></form><h3>Projects</h3>{sectionLoading ? <p className="muted">Loading projects…</p> : projects.length ? <div className="rows">{projects.map(project => <article className="rowitem" key={project.id}><div><strong>{project.name}</strong><div className="muted">{project.service_line} · {project.status}{project.due_date ? ` · Due ${project.due_date}` : ''}</div><div className="muted small">{clients.find(client => client.id === project.client)?.name ?? 'No client linked'}</div></div></article>)}</div> : <p className="muted">No projects are available for this organization.</p>}</section>
+  </div>
   : active === 'Messages' ? <section className="panel"><h3>Direct messages</h3><form onSubmit={sendMessage} className="message-form"><label>Recipient<select value={recipient} onChange={e => setRecipient(e.target.value)} required><option value="">Choose a colleague</option>{employees.map(employee => <option key={employee.user_id} value={employee.user_id}>{employee.display_name} — {employee.department}</option>)}</select></label><label>Message<textarea value={messageBody} onChange={e => setMessageBody(e.target.value)} required maxLength={10000} placeholder="Write a work-related message…" /></label><button className="primary" type="submit"><Send size={15}/> Send message</button></form>{sectionLoading ? <p className="muted">Loading messages…</p> : messages.length ? <div className="rows">{messages.map(message => <article className="feedpost" key={message.id}><strong>{message.sender_name} → {message.recipient_name}</strong><div className="muted small">{new Date(message.sent_at).toLocaleString()}</div><p>{message.body}</p></article>)}</div> : <p className="muted">No messages in this organization yet.</p>}</section>
   : active === 'EOD reports' ? <div className="grid"><section className="panel wide"><h3>Create daily report</h3><form className="message-form" onSubmit={createEod}><label>Report date<input type="date" value={eodDate} onChange={e => setEodDate(e.target.value)} required /></label><label>Completed work<textarea value={eodCompleted} onChange={e => setEodCompleted(e.target.value)} maxLength={10000} required /></label><label>In progress<textarea value={eodInProgress} onChange={e => setEodInProgress(e.target.value)} maxLength={10000} /></label><label>Blockers<textarea value={eodBlockers} onChange={e => setEodBlockers(e.target.value)} maxLength={10000} /></label><label>Next-day priorities<textarea value={eodNext} onChange={e => setEodNext(e.target.value)} maxLength={10000} /></label><button className="primary" type="submit">Save draft</button></form></section><section className="panel wide"><h3>My EOD history</h3>{eodReports.map(report => <article className="feedpost" key={report.id}><strong>{report.report_date} · {report.status} · v{report.version}</strong><p>{report.completed_work}</p>{report.review_note && <p className="muted">Manager note: {report.review_note}</p>}{['DRAFT','NEEDS_CHANGES'].includes(report.status) && <button onClick={() => void submitEod(report)}>Submit for review</button>}</article>)}{!eodReports.length && <p className="muted">No reports returned by the API.</p>}</section></div>
   : active === 'HR self-service' ? <div className="grid"><section className="panel"><h3>Attendance</h3><div className="actions"><button className="primary" onClick={() => void attendanceAction('check_in')}>Check in</button><button onClick={() => void attendanceAction('check_out')}>Check out</button></div>{attendanceEntries.map(entry => <article className="feedpost" key={entry.id}><strong>{entry.status}</strong><div>{new Date(entry.started_at).toLocaleString()} — {entry.ended_at ? new Date(entry.ended_at).toLocaleString() : 'Open session'}</div></article>)}</section><section className="panel"><h3>Request leave</h3><form className="message-form" onSubmit={createLeave}><label>Leave type<select value={leaveType} onChange={e => setLeaveType(e.target.value)}><option value="CASUAL">Casual</option><option value="SICK">Sick</option><option value="ANNUAL">Annual</option><option value="UNPAID">Unpaid</option></select></label><label>Start date<input type="date" value={leaveStart} onChange={e => setLeaveStart(e.target.value)} required /></label><label>End date<input type="date" value={leaveEnd} onChange={e => setLeaveEnd(e.target.value)} required /></label><label>Reason<textarea value={leaveReason} onChange={e => setLeaveReason(e.target.value)} maxLength={3000} /></label><button className="primary" type="submit">Submit leave request</button></form><h3>My requests</h3>{leaveRequests.map(item => <article className="feedpost" key={item.id}><strong>{item.leave_type} · {item.status}</strong><div>{item.start_date} to {item.end_date}</div><p>{item.reason}</p></article>)}</section></div>
