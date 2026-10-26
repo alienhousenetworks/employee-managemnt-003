@@ -18,6 +18,8 @@ def connect():
     columns = {row["name"] for row in db.execute("PRAGMA table_info(workflow_runs)")}
     if "idempotency_key" not in columns:
         db.execute("ALTER TABLE workflow_runs ADD COLUMN idempotency_key TEXT")
+    if "request_hash" not in columns:
+        db.execute("ALTER TABLE workflow_runs ADD COLUMN request_hash TEXT")
     db.execute("CREATE INDEX IF NOT EXISTS idx_runs_org ON workflow_runs(organization_id, created_at)")
     db.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_runs_org_idempotency "
@@ -30,11 +32,11 @@ def save_run(run):
     with closing(connect()) as db, db:
         db.execute(
             "INSERT OR IGNORE INTO workflow_runs"
-            "(run_id, organization_id, workflow, status, mode, message, evidence_json, idempotency_key) "
-            "VALUES(?,?,?,?,?,?,?,?)",
+            "(run_id, organization_id, workflow, status, mode, message, evidence_json, idempotency_key, request_hash) "
+            "VALUES(?,?,?,?,?,?,?,?,?)",
             (
                 run["run_id"], run["organization_id"], run["workflow"], run["status"],
-                run["mode"], run["message"], "[]", run.get("idempotency_key"),
+                run["mode"], run["message"], "[]", run.get("idempotency_key"), run.get("request_hash"),
             ),
         )
         if run.get("idempotency_key"):
@@ -42,6 +44,8 @@ def save_run(run):
                 "SELECT * FROM workflow_runs WHERE organization_id=? AND idempotency_key=?",
                 (run["organization_id"], run["idempotency_key"]),
             ).fetchone()
+            if row and run.get("request_hash") and row["request_hash"] and row["request_hash"] != run["request_hash"]:
+                raise ValueError("Idempotency-Key was already used with a different request.")
         else:
             row = db.execute(
                 "SELECT * FROM workflow_runs WHERE run_id=? AND organization_id=?",
