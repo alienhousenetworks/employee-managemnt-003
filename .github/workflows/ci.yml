@@ -6,6 +6,22 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: agency_workforce_test
+          POSTGRES_USER: agency_test
+          POSTGRES_PASSWORD: agency_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U agency_test -d agency_workforce_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://agency_test:agency_test_password@localhost:5432/agency_workforce_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
