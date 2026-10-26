@@ -126,3 +126,15 @@ class Candidate(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     class Meta:
         constraints = [models.UniqueConstraint(fields=["organization", "email", "role_title"], name="uniq_candidate_role_email")]
+
+class ShiftSchedule(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="shift_schedules")
+    employee = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="shift_schedules")
+    shift_date = models.DateField()
+    starts_at = models.TimeField()
+    ends_at = models.TimeField()
+    timezone_name = models.CharField(max_length=64, default="Asia/Kolkata")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="created_shift_schedules")
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["organization", "employee", "shift_date"], name="uniq_employee_shift_per_day")]
