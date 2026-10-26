@@ -150,3 +150,28 @@ class ClientRenewal(models.Model):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+class GitHubRepositoryLink(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="github_repository_links")
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="github_repositories")
+    repository_full_name = models.CharField(max_length=240)
+    repository_url = models.URLField()
+    installation_id = models.CharField(max_length=100, blank=True)
+    is_enabled = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["organization", "repository_full_name"], name="uniq_github_repo_per_org")]
+
+class GitHubWorkItemLink(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="github_work_item_links")
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="github_work_items")
+    repository = models.ForeignKey(GitHubRepositoryLink, on_delete=models.CASCADE, related_name="work_items")
+    external_id = models.CharField(max_length=100)
+    item_type = models.CharField(max_length=20, default="issue")
+    title = models.CharField(max_length=240, blank=True)
+    url = models.URLField()
+    state = models.CharField(max_length=40, blank=True)
+    synced_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["repository", "external_id", "item_type"], name="uniq_github_work_item")]
